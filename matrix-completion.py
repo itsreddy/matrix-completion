@@ -70,7 +70,7 @@ def preprocess_matrix(ratings, process_type=2):
 
     return np.transpose(f_ratings_t), means
 
-def perform_svd_predict(matrix, means, k=25, method=None, process_type=2):
+def perform_svd_reconstruct(matrix, means, k=25, method=None, process_type=2):
     # use sparse for a sparse matrix(lot of zeros) eg. when F_0 uses type 1
     if method == 'sparse':
         U1, sigma, Vt = svds(f_ratings, k = k)
@@ -88,11 +88,55 @@ def perform_svd_predict(matrix, means, k=25, method=None, process_type=2):
             preds = np.matmul(np.matmul(temp1, temp3), temp2) + np.array(means)
         else:
             preds = np.matmul(np.matmul(temp1, temp3), temp2)
+    
+    return preds
+
+def predict(reconstructed_ratings, ratings, val_df, train_cid, train_mid, validate):
+    pred = []
+    gt = []
+    for i in range(val_df.shape[0]):
+
+        temp = val_df.iloc[i]
+        cid = train_cid.get(temp[1])
+        mid = train_mid.get(temp[0])
+
+        if mid is not None:
+            if cid is not None:
+                rating_prediction = reconstructed_ratings[cid][mid]
+            else:
+                movie_r = ratings[:, mid]
+                nonzeros = movie_r[np.nonzero(movie_r)]
+                rating_prediction = np.mean(nonzeros)
+        else:
+            if cid is not None:
+                movie_r = ratings[cid]
+                nonzeros = movie_r[np.nonzero(movie_r)]
+                rating_prediction = np.mean(nonzeros)
+            else:
+                rating_prediction = 3
+
+        if temp[2] == 0:
+            continue
         
+        if validate:
+            gt.append(temp[2])
+    
+        if rating_prediction > 5:
+            rating_prediction = 5
+        if rating_prediction <= 0.5:
+            rating_prediction = 1
+
+        pred.append(round(rating_prediction))
+    
+    return pred, gt
 
 
 # main
+
+# set validate to true if you want to perform validation, 
+# set to false if you want to predict on test dataset
 validate = True
+
 base_path = os.getcwd()
 train_df, test_df = load_data(base_path)
 train_df = shuffle_data(train_df)
@@ -111,4 +155,9 @@ train_mid = construct_dict(train_df, 'movie-id')
 ratings = make_matrix(train_df, train_cid, train_mid)
 
 f_ratings, means = preprocess_matrix(ratings)
+
+reconstructed_ratings = perform_svd_reconstruct(f_ratings, means)
+
+if not validate:
+    val_df_original = test_df.copy()
 
