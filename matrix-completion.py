@@ -51,7 +51,7 @@ def preprocess_matrix(ratings, process_type=2):
     # type 2: filling all empty spaces in a col with mean of the col
     f_ratings = ratings.copy()
     f_ratings_t = np.transpose(f_ratings)
-
+    means = []
     for i in range(f_ratings_t.shape[0]):
         record = f_ratings_t[i]
         nonzeros = record[np.nonzero(record)]
@@ -59,6 +59,7 @@ def preprocess_matrix(ratings, process_type=2):
             mean = np.mean(nonzeros)
         else:
             mean = 0
+        means.append(mean)
 
         if process_type == 1:
             record[np.nonzero(record)] = record[np.nonzero(record)] - mean
@@ -67,18 +68,27 @@ def preprocess_matrix(ratings, process_type=2):
         elif process_type == 2:
             f_ratings_t[i] = np.where(record==0, mean, record)
 
-    return np.transpose(f_ratings_t)
+    return np.transpose(f_ratings_t), means
 
-def perform_svd_predict(matrix, method=None):
+def perform_svd_predict(matrix, means, k=25, method=None, process_type=2):
     # use sparse for a sparse matrix(lot of zeros) eg. when F_0 uses type 1
     if method == 'sparse':
-        U1, sigma, Vt = svds(f_ratings, k = 25)
+        U1, sigma, Vt = svds(f_ratings, k = k)
         sigma = np.diag(sigma)
-        predicted_ratings = np.dot(np.dot(U1, sigma), Vt) + np.array(means)
+        if process_type==1:
+            preds = np.dot(np.dot(U1, sigma), Vt) + np.array(means)
+        else:
+            preds = np.dot(np.dot(U1, sigma), Vt)
     else:
-        U, s, Vh = scipy.linalg.svd(f_ratings, full_matrices=False)
-
-
+        U, s, Vh = svd(f_ratings, full_matrices=False)
+        temp1 = U [:, :k]
+        temp2 = Vh [:k]
+        temp3 = np.diag(s[:k])
+        if process_type==1:
+            preds = np.matmul(np.matmul(temp1, temp3), temp2) + np.array(means)
+        else:
+            preds = np.matmul(np.matmul(temp1, temp3), temp2)
+        
 
 
 # main
@@ -100,5 +110,5 @@ train_mid = construct_dict(train_df, 'movie-id')
 
 ratings = make_matrix(train_df, train_cid, train_mid)
 
-f_ratings = preprocess_matrix(ratings)
+f_ratings, means = preprocess_matrix(ratings)
 
