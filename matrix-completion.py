@@ -12,50 +12,53 @@ import math
 def load_data(base_path):
     train_df = pd.read_csv( base_path + "train.csv")
     test_df = pd.read_csv( base_path + "test.csv")
-    return 
+    test_df['rating'].replace({"?": 0}, inplace=True)
+    return train_df, test_df
 
-raw_df = shuffle(raw_df)
-raw_df = raw_df.reset_index(drop=True)
+def shuffle_data(df):
+    df = shuffle(df)
+    return df.reset_index(drop=True)
 
-split_index = round(0.1 * raw_df.shape[0])
-validate_df = raw_df[: split_index]
+def make_matrix(train_df, train_cid, train_mid):
+    train_movies_n = len(train_mid)
+    train_cust_n = len(train_cid)
+    # Make movie-by-user matrix to hold ratings
+    ratings = np.zeros((train_cust_n, train_movies_n))
 
-val_df_original = validate_df.copy()
-validate_df['rating'].values[:] = 0
+    for i in range(len(train_df)):
+        current = train_df.iloc[i]
+        customer_idx = train_cid.get(current[1])
+        movie_idx = train_mid.get(current[0])
+        ratings[customer_idx, movie_idx] = current[2]
+    
+    return ratings
 
-test_df['rating'].replace({"?": 0}, inplace=True)
+def construct_dict(df, column):
+    col = df[column]
+    col_sorted = col.sort_values()
+    d = {}
+    cursor = 0
+    for val in col_sorted:
+        if val not in d:
+            d[val] = cursor
+            cursor += 1
+    return d
 
-combined_df = raw_df
+# main
+validate = True
+base_path = os.getcwd()
+train_df, test_df = load_data(base_path)
+train_df = shuffle_data(train_df)
+
+if validate:
+    split_index = round(0.1 * train_df.shape[0])
+    validate_df = train_df[: split_index]
+    val_df_original = validate_df.copy()
+    validate_df['rating'].values[:] = 0
+
 
 # construct a dict to map users, movies with row, column ids
-combined_customers = combined_df['customer-id']
-combined_cid_sorted = combined_customers.sort_values()
-combined_movies = combined_df['movie-id']
-combined_mid_sorted = combined_movies.sort_values()
+train_cid = construct_dict(train_df, 'customer-id')
+train_mid = construct_dict(train_df, 'movie-id')
 
-combined_cid = {}
-cursor = 0
-for val in combined_cid_sorted:
-    if val not in combined_cid:
-        combined_cid[val] = cursor
-        cursor += 1
-
-combined_mid = {}
-cursor = 0
-for val in combined_mid_sorted:
-    if val not in combined_mid:
-        combined_mid[val] = cursor
-        cursor += 1
-
-combined_movies_n = len(combined_mid)
-combined_cust_n = len(combined_cid)
-print(combined_movies_n, combined_cust_n)
-
-# Make movie-by-user matrix to hold ratings
-ratings = np.zeros((combined_cust_n, combined_movies_n))
-
-for i in range(len(combined_df)):
-    current = combined_df.iloc[i]
-    customer_idx = combined_cid.get(current[1])
-    movie_idx = combined_mid.get(current[0])
-    ratings[customer_idx, movie_idx] = current[2]
+ratings = make_matrix(train_df, train_cid, train_mid)
