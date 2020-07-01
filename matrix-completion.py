@@ -130,6 +130,10 @@ def predict(reconstructed_ratings, ratings, val_df, train_cid, train_mid, valida
     
     return pred, gt
 
+def calculate_mse(predictions, ground_truths):
+    return ((np.array(predictions) - np.array(ground_truths))**2).mean(axis=None)
+
+
 
 # main
 
@@ -161,3 +165,10 @@ reconstructed_ratings = perform_svd_reconstruct(f_ratings, means)
 if not validate:
     val_df_original = test_df.copy()
 
+predictions, ground_truths = predict(reconstructed_ratings, ratings,
+                                        val_df_original, train_cid, train_mid,
+                                        validate)
+
+mse = calculate_mse(predictions, ground_truths):
+
+print(mse)
